@@ -4,7 +4,31 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Sistema Multi-Coda</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.tailwindcss.com"></script><!-- Firebase SDK -->
+  <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+        import { getDatabase, ref, set, onValue, get } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyB0Jiquu-w8S7UQi3irpXLQ-fdM_FxC7XQ",
+            authDomain: "gestione-coda.firebaseapp.com",
+            databaseURL: "https://gestione-coda-default-rtdb.europe-west1.firebasedatabase.app",
+            projectId: "gestione-coda",
+            storageBucket: "gestione-coda.firebasestorage.app",
+            messagingSenderId: "140779823782",
+            appId: "1:140779823782:web:43ac93e7f2957ffbf1ca67"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        window.firebaseDb = getDatabase(app);
+        window.firebaseRef = ref;
+        window.firebaseSet = set;
+        window.firebaseOnValue = onValue;
+        window.firebaseGet = get;
+        window.firebaseInitialized = true;
+        
+        console.log('🔥 Firebase inizializzato con successo!');
+    </script>
   <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
         body { 
@@ -64,9 +88,9 @@
  <body class="bg-gradient-to-br from-slate-900 to-blue-900 min-h-screen"><!-- Selettore Modalità -->
   <div class="fixed top-4 right-4 z-50"><select id="modeSelector" onchange="switchMode()" class="bg-white/90 backdrop-blur-sm border border-gray-300 rounded-lg px-4 py-2 text-sm font-medium shadow-lg"> <option value="display">📺 Display Pubblico</option> <option value="controls">🎛️ Controlli</option> <option value="status">📊 Stato Sistema</option> <option value="overview">🗂️ Panoramica Code</option> </select>
   </div><!-- Indicatore Sincronizzazione -->
-  <div id="syncIndicator" class="fixed top-4 left-4 z-50 hidden">
+  <div id="syncIndicator" class="fixed top-4 left-4 z-50">
    <div class="bg-yellow-500/90 backdrop-blur-sm text-white px-3 py-1 rounded-lg text-sm font-medium">
-    ⚙️ Inizializzazione...
+    ⚙️ Inizializzazione Firebase...
    </div>
   </div><!-- Sistema Notifiche -->
   <div id="notificationContainer" class="fixed top-20 right-4 z-50 space-y-2"></div><!-- MODALITÀ DISPLAY PUBBLICO -->
@@ -210,27 +234,13 @@
             sportello5: { name: 'SPORTELLO 5', icon: '🟣', color: 'purple' }
         };
 
-        // Configurazione Cloud
-        const SYSTEM_KEY = 'multicoda_sistema_v1';
-        const JSONBIN_API_KEY = '$2a$10$Zcgt8XLx95ZpIQyIS31rGOjbKDc3bN3GhjVPa0l8Qrt/H2WiRaD7.';
-        const JSONBIN_API_URL = 'https://api.jsonbin.io/v3/b';
-        const USE_CLOUD_SYNC = true;
-        
-        let cloudBinIds = {
-            sportello1: '692023c8ae596e708f6707a9',
-            sportello2: null,
-            sportello3: null,
-            sportello4: null,
-            sportello5: null
-        };
-
         // Stato globale
         let allQueues = {};
         let currentQueueId = 'sportello1';
         let currentMode = 'display';
         let sessionId = generateSessionId();
-        let isOnline = navigator.onLine;
-        let isCloudInitialized = false;
+        let isFirebaseReady = false;
+        let firebaseListeners = {};
 
         // Inizializza tutte le code
         function initializeAllQueues() {
@@ -240,7 +250,7 @@
                     currentCustomer: null,
                     totalServed: 0,
                     history: [],
-                    lastSyncTime: 0
+                    lastUpdateTime: 0
                 };
                 
                 // Inizializza coda 1-99
@@ -252,7 +262,7 @@
                 }
                 
                 allQueues[queueId].history.push({
-                    action: `�� ${QUEUE_CONFIGS[queueId].name} inizializzato - 99 persone in attesa`,
+                    action: `🔄 ${QUEUE_CONFIGS[queueId].name} inizializzato - 99 persone in attesa`,
                     time: new Date().toLocaleTimeString('it-IT')
                 });
             });
@@ -309,37 +319,108 @@
             }
         }
 
-        // ========== CLOUD SYNC FUNCTIONS ==========
+        // ========== FIREBASE REAL-TIME SYNC ==========
 
-        async function initializeCloudSync() {
-            if (!USE_CLOUD_SYNC || !isOnline) {
-                updateSyncIndicator('📱 Offline - Solo Locale', 'yellow');
+        async function initializeFirebase() {
+            updateSyncIndicator('🔄 Connessione a Firebase...', 'yellow');
+            
+            // Aspetta che Firebase sia caricato
+            let attempts = 0;
+            while (!window.firebaseInitialized && attempts < 50) {
+                await new Promise(resolve => setTimeout(resolve, 100));
+                attempts++;
+            }
+            
+            if (!window.firebaseInitialized) {
+                updateSyncIndicator('❌ Firebase non disponibile', 'red');
+                showNotification('Errore connessione Firebase - Solo modalità locale', 'error');
                 return;
             }
-
-            updateSyncIndicator('🔄 Configurazione cloud...', 'yellow');
-
+            
             try {
-                // Carica i dati dal cloud per sportello1
-                await loadQueueFromCloud('sportello1');
-                isCloudInitialized = true;
-                updateSyncIndicator('☁️ Sincronizzato', 'green');
-                showNotification('Sincronizzazione cloud attiva per Sportello 1!', 'success');
-
-                // Avvia il polling
-                startCloudPolling();
+                // Carica i dati iniziali da Firebase
+                await loadAllQueuesFromFirebase();
+                
+                // Setup listener real-time per ogni coda
+                setupFirebaseListeners();
+                
+                isFirebaseReady = true;
+                updateSyncIndicator('🔥 Firebase Real-Time Attivo', 'green');
+                showNotification('Sincronizzazione real-time attiva!', 'success');
+                
             } catch (error) {
-                console.error('Errore inizializzazione cloud:', error);
-                updateSyncIndicator('⚠️ Cloud non disponibile', 'red');
-                showNotification('Cloud non disponibile, modalità offline', 'warning');
+                console.error('Errore inizializzazione Firebase:', error);
+                updateSyncIndicator('⚠️ Firebase errore', 'red');
+                showNotification('Errore Firebase: ' + error.message, 'error');
             }
         }
 
-        async function saveQueueToCloud(queueId) {
-            if (!USE_CLOUD_SYNC || !isOnline || !cloudBinIds[queueId]) {
+        function setupFirebaseListeners() {
+            Object.keys(QUEUE_CONFIGS).forEach(queueId => {
+                const queueRef = window.firebaseRef(window.firebaseDb, `queues/${queueId}`);
+                
+                // Listener real-time
+                const unsubscribe = window.firebaseOnValue(queueRef, (snapshot) => {
+                    const data = snapshot.val();
+                    
+                    if (data && data.sessionId !== sessionId) {
+                        // Aggiorna solo se da un'altra sessione
+                        if (data.timestamp > allQueues[queueId].lastUpdateTime) {
+                            allQueues[queueId] = {
+                                queue: data.queue || [],
+                                currentCustomer: data.currentCustomer || null,
+                                totalServed: data.totalServed || 0,
+                                history: data.history || [],
+                                lastUpdateTime: data.timestamp
+                            };
+                            
+                            updateDisplay();
+                            
+                            // Notifica cambio
+                            if (queueId === currentQueueId && data.currentCustomer) {
+                                showNotification(
+                                    `${QUEUE_CONFIGS[queueId].icon} Numero ${data.currentCustomer.number} chiamato da altro dispositivo`, 
+                                    'info'
+                                );
+                            }
+                        }
+                    }
+                });
+                
+                firebaseListeners[queueId] = unsubscribe;
+            });
+        }
+
+        async function loadAllQueuesFromFirebase() {
+            for (const queueId of Object.keys(QUEUE_CONFIGS)) {
+                try {
+                    const queueRef = window.firebaseRef(window.firebaseDb, `queues/${queueId}`);
+                    const snapshot = await window.firebaseGet(queueRef);
+                    const data = snapshot.val();
+                    
+                    if (data) {
+                        allQueues[queueId] = {
+                            queue: data.queue || [],
+                            currentCustomer: data.currentCustomer || null,
+                            totalServed: data.totalServed || 0,
+                            history: data.history || [],
+                            lastUpdateTime: data.timestamp || 0
+                        };
+                    }
+                } catch (error) {
+                    console.error(`Errore caricamento ${queueId}:`, error);
+                }
+            }
+            
+            updateDisplay();
+        }
+
+        async function saveQueueToFirebase(queueId, retryCount = 0) {
+            if (!isFirebaseReady) {
+                console.warn('Firebase non pronto, skip salvataggio');
                 return;
             }
-
+            
             const data = {
                 queue: allQueues[queueId].queue,
                 currentCustomer: allQueues[queueId].currentCustomer,
@@ -348,88 +429,33 @@
                 timestamp: Date.now(),
                 sessionId: sessionId
             };
-
+            
             try {
-                const response = await fetch(`${JSONBIN_API_URL}/${cloudBinIds[queueId]}`, {
-                    method: 'PUT',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-Master-Key': JSONBIN_API_KEY
-                    },
-                    body: JSON.stringify(data)
-                });
-
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}`);
-                }
-
-                updateSyncIndicator('☁️ Salvato nel cloud', 'green');
+                const queueRef = window.firebaseRef(window.firebaseDb, `queues/${queueId}`);
+                await window.firebaseSet(queueRef, data);
+                
+                allQueues[queueId].lastUpdateTime = data.timestamp;
+                updateSyncIndicator('🔥 Salvato in Firebase', 'green');
+                
             } catch (error) {
-                console.error(`Errore salvataggio cloud ${queueId}:`, error);
-                updateSyncIndicator('⚠️ Errore sincronizzazione', 'red');
-            }
-        }
-
-        async function loadQueueFromCloud(queueId) {
-            if (!USE_CLOUD_SYNC || !isOnline || !cloudBinIds[queueId]) {
-                return;
-            }
-
-            try {
-                const response = await fetch(`${JSONBIN_API_URL}/${cloudBinIds[queueId]}/latest`, {
-                    method: 'GET',
-                    headers: {
-                        'X-Master-Key': JSONBIN_API_KEY
-                    }
-                });
-
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}`);
-                }
-
-                const result = await response.json();
-                const data = result.record;
-
-                // Aggiorna solo se pi�� recente e da un'altra sessione
-                if (data.timestamp > allQueues[queueId].lastSyncTime && data.sessionId !== sessionId) {
-                    allQueues[queueId] = {
-                        queue: data.queue || [],
-                        currentCustomer: data.currentCustomer || null,
-                        totalServed: data.totalServed || 0,
-                        history: data.history || [],
-                        lastSyncTime: data.timestamp
-                    };
-
-                    updateDisplay();
+                console.error(`Errore salvataggio Firebase ${queueId}:`, error);
+                
+                // Retry con backoff esponenziale
+                if (retryCount < 3) {
+                    const delay = Math.pow(2, retryCount) * 1000;
+                    updateSyncIndicator(`🔄 Riprovo... (${retryCount + 1}/3)`, 'yellow');
+                    showNotification(`Riprovo salvataggio... (${retryCount + 1}/3)`, 'warning');
                     
-                    // Notifica cambio
-                    if (queueId === currentQueueId && data.currentCustomer) {
-                        showNotification(`${QUEUE_CONFIGS[queueId].icon} Numero ${data.currentCustomer.number} chiamato da altro dispositivo`, 'info');
-                    }
-                }
-            } catch (error) {
-                console.error(`Errore caricamento cloud ${queueId}:`, error);
-            }
-        }
-
-        async function loadAllQueuesFromCloud() {
-            for (const queueId of Object.keys(QUEUE_CONFIGS)) {
-                if (cloudBinIds[queueId]) {
-                    await loadQueueFromCloud(queueId);
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                    return saveQueueToFirebase(queueId, retryCount + 1);
+                } else {
+                    updateSyncIndicator('❌ Sincronizzazione fallita', 'red');
+                    showNotification('Impossibile sincronizzare. Controlla la connessione.', 'error');
                 }
             }
         }
 
-        function startCloudPolling() {
-            // Polling ogni 2 secondi
-            setInterval(async () => {
-                if (USE_CLOUD_SYNC && isOnline && isCloudInitialized) {
-                    await loadAllQueuesFromCloud();
-                }
-            }, 2000);
-        }
-
-        // ========== LOCAL STORAGE FUNCTIONS (BACKUP) ==========
+        // ========== LOCAL STORAGE BACKUP ==========
 
         function saveQueueLocal(queueId) {
             const data = {
@@ -439,58 +465,21 @@
             };
             
             try {
-                localStorage.setItem(`${SYSTEM_KEY}_${queueId}`, JSON.stringify(data));
-                localStorage.setItem(`${SYSTEM_KEY}_lastUpdate`, Date.now().toString());
+                localStorage.setItem(`queue_${queueId}`, JSON.stringify(data));
             } catch (e) {
                 console.warn('Errore salvataggio locale:', e);
             }
         }
 
-        function loadQueueLocal(queueId) {
-            try {
-                const data = localStorage.getItem(`${SYSTEM_KEY}_${queueId}`);
-                if (!data) return;
-                
-                const parsed = JSON.parse(data);
-                
-                if (parsed.timestamp > allQueues[queueId].lastSyncTime && parsed.sessionId !== sessionId) {
-                    allQueues[queueId] = {
-                        queue: parsed.queue || [],
-                        currentCustomer: parsed.currentCustomer || null,
-                        totalServed: parsed.totalServed || 0,
-                        history: parsed.history || [],
-                        lastSyncTime: parsed.timestamp
-                    };
-                    
-                    updateDisplay();
-                }
-            } catch (e) {
-                console.warn('Errore caricamento locale:', e);
-            }
-        }
-
-        // Funzione unificata di salvataggio
         async function saveQueueData(queueId) {
+            // Salva sempre in locale come backup
             saveQueueLocal(queueId);
             
-            if (USE_CLOUD_SYNC && isCloudInitialized) {
-                await saveQueueToCloud(queueId);
+            // Salva su Firebase se disponibile
+            if (isFirebaseReady) {
+                await saveQueueToFirebase(queueId);
             }
         }
-
-        // Storage event per sincronizzazione locale tra schede
-        window.addEventListener('storage', (e) => {
-            if (e.key && e.key.startsWith(SYSTEM_KEY)) {
-                if (e.key === `${SYSTEM_KEY}_lastUpdate`) {
-                    Object.keys(QUEUE_CONFIGS).forEach(loadQueueLocal);
-                } else {
-                    const queueId = e.key.replace(`${SYSTEM_KEY}_`, '');
-                    if (QUEUE_CONFIGS[queueId]) {
-                        loadQueueLocal(queueId);
-                    }
-                }
-            }
-        });
 
         // ========== UI FUNCTIONS ==========
 
@@ -864,19 +853,6 @@
 
         // ========== EVENT LISTENERS ==========
 
-        window.addEventListener('online', () => {
-            isOnline = true;
-            updateSyncIndicator('🌐 Riconnesso!', 'green');
-            if (USE_CLOUD_SYNC && !isCloudInitialized) {
-                initializeCloudSync();
-            }
-        });
-
-        window.addEventListener('offline', () => {
-            isOnline = false;
-            updateSyncIndicator('📱 Offline - Solo Locale', 'yellow');
-        });
-
         document.addEventListener('DOMContentLoaded', function() {
             const specificNumberInput = document.getElementById('specificNumber');
             if (specificNumberInput) {
@@ -889,18 +865,10 @@
         // ========== INITIALIZATION ==========
 
         initializeAllQueues();
-        
-        // Carica dati locali prima
-        Object.keys(QUEUE_CONFIGS).forEach(loadQueueLocal);
-        
-        // Poi inizializza il cloud
-        if (USE_CLOUD_SYNC) {
-            initializeCloudSync();
-        } else {
-            updateSyncIndicator('📱 Solo Locale', 'yellow');
-        }
-        
         updateDisplay();
+        
+        // Inizializza Firebase
+        initializeFirebase();
     </script>
- <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9a1f36349356ed22',t:'MTc2MzcxNzg4MS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+ <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9a1f4d69b44aed22',t:'MTc2MzcxODgzMS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
