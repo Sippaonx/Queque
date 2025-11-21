@@ -7,7 +7,7 @@
   <script src="https://cdn.tailwindcss.com"></script><!-- Firebase SDK -->
   <script type="module">
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
-        import { getDatabase, ref, set, onValue, get } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
+        import { getDatabase, ref, set, onValue, get, connectDatabaseEmulator } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
 
         const firebaseConfig = {
             apiKey: "AIzaSyB0Jiquu-w8S7UQi3irpXLQ-fdM_FxC7XQ",
@@ -19,15 +19,36 @@
             appId: "1:140779823782:web:43ac93e7f2957ffbf1ca67"
         };
 
-        const app = initializeApp(firebaseConfig);
-        window.firebaseDb = getDatabase(app);
-        window.firebaseRef = ref;
-        window.firebaseSet = set;
-        window.firebaseOnValue = onValue;
-        window.firebaseGet = get;
-        window.firebaseInitialized = true;
-        
-        console.log('🔥 Firebase inizializzato con successo!');
+        try {
+            const app = initializeApp(firebaseConfig);
+            const db = getDatabase(app);
+            
+            window.firebaseDb = db;
+            window.firebaseRef = ref;
+            window.firebaseSet = set;
+            window.firebaseOnValue = onValue;
+            window.firebaseGet = get;
+            window.firebaseInitialized = true;
+            
+            console.log('🔥 Firebase inizializzato con successo!');
+            console.log('🔗 Database URL:', firebaseConfig.databaseURL);
+            
+            // Test connessione
+            const testRef = ref(db, '.info/connected');
+            onValue(testRef, (snapshot) => {
+                if (snapshot.val() === true) {
+                    console.log('✅ Firebase connesso!');
+                    window.firebaseConnected = true;
+                } else {
+                    console.log('⚠️ Firebase disconnesso');
+                    window.firebaseConnected = false;
+                }
+            });
+            
+        } catch (error) {
+            console.error('❌ Errore inizializzazione Firebase:', error);
+            window.firebaseInitialized = false;
+        }
     </script>
   <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
@@ -86,7 +107,7 @@
   <script src="/_sdk/element_sdk.js" type="text/javascript"></script>
  </head>
  <body class="bg-gradient-to-br from-slate-900 to-blue-900 min-h-screen"><!-- Selettore Modalità -->
-  <div class="fixed top-4 right-4 z-50"><select id="modeSelector" onchange="switchMode()" class="bg-white/90 backdrop-blur-sm border border-gray-300 rounded-lg px-4 py-2 text-sm font-medium shadow-lg"> <option value="display">📺 Display Pubblico</option> <option value="controls">🎛️ Controlli</option> <option value="status">📊 Stato Sistema</option> <option value="overview">🗂️ Panoramica Code</option> </select>
+  <div class="fixed top-4 right-4 z-50"><select id="modeSelector" onchange="switchMode()" class="bg-white/90 backdrop-blur-sm border border-gray-300 rounded-lg px-4 py-2 text-sm font-medium shadow-lg"> <option value="display">📺 Display Pubblico</option> <option value="controls">🎛️ Controlli</option> <option value="advanced">⚙️ Controlli Avanzati</option> <option value="status">📊 Stato Sistema</option> <option value="overview">🗂️ Panoramica Code</option> </select>
   </div><!-- Indicatore Sincronizzazione -->
   <div id="syncIndicator" class="fixed top-4 left-4 z-50">
    <div class="bg-yellow-500/90 backdrop-blur-sm text-white px-3 py-1 rounded-lg text-sm font-medium">
@@ -104,7 +125,7 @@
    </div>
   </div><!-- MODALITÀ CONTROLLI -->
   <div id="controlsMode" class="min-h-screen p-4 flex flex-col hidden">
-   <div class="text-center mb-6" style="display: none;">
+   <div class="text-center mb-8" style="display: none;">
     <div class="mb-4"><select id="controlsQueueSelector" onchange="switchQueueFromControls()" class="bg-white/90 backdrop-blur-sm border border-gray-300 rounded-lg px-6 py-3 text-base font-medium shadow-lg"> <option value="sportello1">🔵 Sportello 1</option> <option value="sportello2">🟢 Sportello 2</option> <option value="sportello3">🟡 Sportello 3</option> <option value="sportello4">🔴 Sportello 4</option> <option value="sportello5">🟣 Sportello 5</option> </select>
     </div>
     <h1 id="controlsQueueName" class="text-4xl font-black text-white mb-2">SPORTELLO 1</h1>
@@ -112,20 +133,32 @@
      🔵
     </div>
    </div>
-   <div class="flex-1 flex items-center justify-center">
+   <div class="flex-1 flex items-center justify-center px-4">
     <div class="w-full max-w-6xl"><!-- Due pulsanti principali -->
-     <div class="grid grid-cols-1 md:grid-cols-2 gap-4"><button onclick="callNext()" id="controlsCallNextBtn" class="bg-green-600 hover:bg-green-700 text-white py-20 rounded-3xl font-black text-5xl transition-all shadow-2xl"> 📢 CHIAMA<br>
-       PROSSIMO </button> <button onclick="goBackOne()" class="bg-red-600 hover:bg-red-700 text-white py-20 rounded-3xl font-black text-5xl transition-all shadow-2xl"> ⬅️ TORNA<br>
+     <div class="grid grid-cols-1 md:grid-cols-2 gap-8"><button onclick="callNext()" id="controlsCallNextBtn" class="bg-green-600 hover:bg-green-700 text-white py-32 rounded-3xl font-black text-6xl transition-all shadow-2xl hover:scale-105"> 📢 CHIAMA<br>
+       PROSSIMO </button> <button onclick="goBackOne()" class="bg-red-600 hover:bg-red-700 text-white py-32 rounded-3xl font-black text-6xl transition-all shadow-2xl hover:scale-105"> ⬅️ TORNA<br>
        INDIETRO </button>
      </div>
     </div>
-   </div><!-- Pulsanti inferiori -->
-   <div class="w-full max-w-6xl mx-auto pb-4">
-    <div class="bg-yellow-600 rounded-2xl p-6 mb-4">
-     <h3 class="text-white font-bold text-2xl mb-3 text-center">🎯 CHIAMA NUMERO SPECIFICO</h3>
-     <div class="flex gap-3"><input type="number" id="specificNumber" placeholder="Numero..." min="1" class="flex-1 px-6 py-4 bg-white/20 border-2 border-white/30 rounded-xl text-white placeholder-white/70 text-2xl font-bold text-center"> <button onclick="callSpecificNumber()" class="bg-white/20 hover:bg-white/30 text-white px-12 py-4 rounded-xl font-bold text-2xl border-2 border-white/30 transition-all"> CHIAMA </button>
-     </div>
-    </div><button onclick="resetCurrentQueue()" class="w-full bg-blue-600 hover:bg-blue-700 text-white py-6 rounded-2xl font-black text-2xl transition-all shadow-2xl"> 🔄 RESET CODA CORRENTE </button>
+   </div>
+  </div><!-- MODALITÀ CONTROLLI AVANZATI -->
+  <div id="advancedMode" class="min-h-screen p-4 flex flex-col hidden">
+   <div class="text-center mb-6">
+    <div class="mb-4"><select id="advancedQueueSelector" onchange="switchQueueFromAdvanced()" class="bg-white/90 backdrop-blur-sm border border-gray-300 rounded-lg px-6 py-3 text-base font-medium shadow-lg"> <option value="sportello1">🔵 Sportello 1</option> <option value="sportello2">🟢 Sportello 2</option> <option value="sportello3">🟡 Sportello 3</option> <option value="sportello4">🔴 Sportello 4</option> <option value="sportello5">🟣 Sportello 5</option> </select>
+    </div>
+    <h1 id="advancedQueueName" class="text-4xl font-black text-white mb-2">SPORTELLO 1</h1>
+    <div id="advancedQueueIcon" class="text-6xl">
+     🔵
+    </div>
+   </div>
+   <div class="flex-1 flex items-center justify-center">
+    <div class="w-full max-w-4xl space-y-6"><!-- Chiama numero specifico -->
+     <div class="bg-yellow-600 rounded-2xl p-8 shadow-2xl">
+      <h3 class="text-white font-bold text-3xl mb-4 text-center">🎯 CHIAMA NUMERO SPECIFICO</h3>
+      <div class="flex gap-4"><input type="number" id="specificNumber" placeholder="Numero..." min="1" class="flex-1 px-8 py-6 bg-white/20 border-2 border-white/30 rounded-xl text-white placeholder-white/70 text-3xl font-bold text-center"> <button onclick="callSpecificNumber()" class="bg-white/20 hover:bg-white/30 text-white px-16 py-6 rounded-xl font-bold text-3xl border-2 border-white/30 transition-all hover:scale-105"> CHIAMA </button>
+      </div>
+     </div><!-- Reset coda --> <button onclick="resetCurrentQueue()" class="w-full bg-blue-600 hover:bg-blue-700 text-white py-8 rounded-2xl font-black text-3xl transition-all shadow-2xl hover:scale-105"> 🔄 RESET CODA CORRENTE </button>
+    </div>
    </div>
   </div><!-- MODALITÀ STATO SISTEMA -->
   <div id="statusMode" class="min-h-screen p-4 hidden">
@@ -323,6 +356,7 @@
 
         async function initializeFirebase() {
             updateSyncIndicator('🔄 Connessione a Firebase...', 'yellow');
+            console.log('📡 Avvio connessione Firebase...');
             
             // Aspetta che Firebase sia caricato
             let attempts = 0;
@@ -332,24 +366,43 @@
             }
             
             if (!window.firebaseInitialized) {
+                console.error('❌ Firebase non inizializzato dopo 5 secondi');
                 updateSyncIndicator('❌ Firebase non disponibile', 'red');
                 showNotification('Errore connessione Firebase - Solo modalità locale', 'error');
                 return;
             }
             
+            console.log('✅ Firebase SDK caricato');
+            
+            // Aspetta connessione effettiva
+            attempts = 0;
+            while (window.firebaseConnected === undefined && attempts < 30) {
+                await new Promise(resolve => setTimeout(resolve, 200));
+                attempts++;
+            }
+            
+            if (!window.firebaseConnected) {
+                console.warn('⚠️ Firebase non connesso - controllo regole database');
+                updateSyncIndicator('⚠️ Firebase: Verifica regole DB', 'yellow');
+            }
+            
             try {
+                console.log('📥 Caricamento dati da Firebase...');
                 // Carica i dati iniziali da Firebase
                 await loadAllQueuesFromFirebase();
                 
+                console.log('👂 Setup listener real-time...');
                 // Setup listener real-time per ogni coda
                 setupFirebaseListeners();
                 
                 isFirebaseReady = true;
                 updateSyncIndicator('🔥 Firebase Real-Time Attivo', 'green');
                 showNotification('Sincronizzazione real-time attiva!', 'success');
+                console.log('✅ Firebase completamente operativo!');
                 
             } catch (error) {
-                console.error('Errore inizializzazione Firebase:', error);
+                console.error('❌ Errore inizializzazione Firebase:', error);
+                console.error('Dettagli:', error.code, error.message);
                 updateSyncIndicator('⚠️ Firebase errore', 'red');
                 showNotification('Errore Firebase: ' + error.message, 'error');
             }
@@ -392,13 +445,16 @@
         }
 
         async function loadAllQueuesFromFirebase() {
+            console.log('📥 Caricamento code da Firebase...');
             for (const queueId of Object.keys(QUEUE_CONFIGS)) {
                 try {
                     const queueRef = window.firebaseRef(window.firebaseDb, `queues/${queueId}`);
+                    console.log(`  📂 Carico ${queueId}...`);
                     const snapshot = await window.firebaseGet(queueRef);
                     const data = snapshot.val();
                     
                     if (data) {
+                        console.log(`  ✅ ${queueId} caricato:`, data);
                         allQueues[queueId] = {
                             queue: data.queue || [],
                             currentCustomer: data.currentCustomer || null,
@@ -406,9 +462,13 @@
                             history: data.history || [],
                             lastUpdateTime: data.timestamp || 0
                         };
+                    } else {
+                        console.log(`  ℹ️ ${queueId} vuoto, uso dati locali`);
                     }
                 } catch (error) {
-                    console.error(`Errore caricamento ${queueId}:`, error);
+                    console.error(`❌ Errore caricamento ${queueId}:`, error);
+                    console.error('  Codice errore:', error.code);
+                    console.error('  Messaggio:', error.message);
                 }
             }
             
@@ -417,7 +477,7 @@
 
         async function saveQueueToFirebase(queueId, retryCount = 0) {
             if (!isFirebaseReady) {
-                console.warn('Firebase non pronto, skip salvataggio');
+                console.warn('⚠️ Firebase non pronto, skip salvataggio');
                 return;
             }
             
@@ -430,19 +490,25 @@
                 sessionId: sessionId
             };
             
+            console.log(`💾 Salvo ${queueId} su Firebase...`, data);
+            
             try {
                 const queueRef = window.firebaseRef(window.firebaseDb, `queues/${queueId}`);
                 await window.firebaseSet(queueRef, data);
                 
                 allQueues[queueId].lastUpdateTime = data.timestamp;
                 updateSyncIndicator('🔥 Salvato in Firebase', 'green');
+                console.log(`✅ ${queueId} salvato con successo`);
                 
             } catch (error) {
-                console.error(`Errore salvataggio Firebase ${queueId}:`, error);
+                console.error(`❌ Errore salvataggio Firebase ${queueId}:`, error);
+                console.error('  Codice errore:', error.code);
+                console.error('  Messaggio:', error.message);
                 
                 // Retry con backoff esponenziale
                 if (retryCount < 3) {
                     const delay = Math.pow(2, retryCount) * 1000;
+                    console.log(`🔄 Riprovo tra ${delay}ms...`);
                     updateSyncIndicator(`🔄 Riprovo... (${retryCount + 1}/3)`, 'yellow');
                     showNotification(`Riprovo salvataggio... (${retryCount + 1}/3)`, 'warning');
                     
@@ -492,12 +558,18 @@
             currentQueueId = document.getElementById('controlsQueueSelector').value;
             updateDisplay();
         }
+        
+        function switchQueueFromAdvanced() {
+            currentQueueId = document.getElementById('advancedQueueSelector').value;
+            updateDisplay();
+        }
 
         function switchMode() {
             currentMode = document.getElementById('modeSelector').value;
             
             document.getElementById('displayMode').classList.add('hidden');
             document.getElementById('controlsMode').classList.add('hidden');
+            document.getElementById('advancedMode').classList.add('hidden');
             document.getElementById('statusMode').classList.add('hidden');
             document.getElementById('overviewMode').classList.add('hidden');
             
@@ -510,6 +582,10 @@
                     break;
                 case 'controls':
                     document.getElementById('controlsMode').classList.remove('hidden');
+                    syncIndicator.classList.remove('hidden');
+                    break;
+                case 'advanced':
+                    document.getElementById('advancedMode').classList.remove('hidden');
                     syncIndicator.classList.remove('hidden');
                     break;
                 case 'status':
@@ -554,10 +630,21 @@
                 const btn = document.getElementById('controlsCallNextBtn');
                 if (queueData.queue.length === 0) {
                     btn.innerHTML = '🔄 RIAVVIA<br>CODA (1-99)';
-                    btn.className = 'bg-orange-600 hover:bg-orange-700 text-white py-20 rounded-3xl font-black text-5xl transition-all shadow-2xl';
+                    btn.className = 'bg-orange-600 hover:bg-orange-700 text-white py-32 rounded-3xl font-black text-6xl transition-all shadow-2xl hover:scale-105';
                 } else {
                     btn.innerHTML = '📢 CHIAMA<br>PROSSIMO';
-                    btn.className = 'bg-green-600 hover:bg-green-700 text-white py-20 rounded-3xl font-black text-5xl transition-all shadow-2xl';
+                    btn.className = 'bg-green-600 hover:bg-green-700 text-white py-32 rounded-3xl font-black text-6xl transition-all shadow-2xl hover:scale-105';
+                }
+            }
+            
+            // Controlli Avanzati
+            if (document.getElementById('advancedQueueName')) {
+                document.getElementById('advancedQueueName').textContent = config.name;
+                document.getElementById('advancedQueueIcon').textContent = config.icon;
+                
+                const advancedSelector = document.getElementById('advancedQueueSelector');
+                if (advancedSelector) {
+                    advancedSelector.value = currentQueueId;
                 }
             }
             
@@ -615,6 +702,11 @@
             // Panoramica
             if (currentMode === 'overview') {
                 updateOverview();
+            }
+            
+            // Modalità advanced
+            if (currentMode === 'advanced') {
+                updateDisplay();
             }
         }
 
@@ -870,5 +962,5 @@
         // Inizializza Firebase
         initializeFirebase();
     </script>
- <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9a1f4d69b44aed22',t:'MTc2MzcxODgzMS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+ <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9a1f75fd26910dfe',t:'MTc2MzcyMDQ5My4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
