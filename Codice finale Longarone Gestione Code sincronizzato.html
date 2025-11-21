@@ -1,0 +1,901 @@
+<!doctype html>
+<html lang="it">
+ <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sistema Multi-Coda</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+        body { 
+            font-family: 'Inter', sans-serif;
+            box-sizing: border-box;
+        }
+        
+        .fade-in {
+            animation: fadeIn 0.5s ease-in;
+        }
+        
+        .slide-up {
+            animation: slideUp 0.3s ease-out;
+        }
+        
+        .pulse-glow {
+            animation: pulseGlow 2s infinite;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        @keyframes slideUp {
+            from { transform: translateY(10px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        
+        @keyframes pulseGlow {
+            0%, 100% { 
+                transform: scale(1); 
+                box-shadow: 0 0 20px rgba(59, 130, 246, 0.5);
+            }
+            50% { 
+                transform: scale(1.05); 
+                box-shadow: 0 0 40px rgba(59, 130, 246, 0.8);
+            }
+        }
+        
+        .number-display {
+            font-size: 12rem;
+            line-height: 1;
+            text-shadow: 0 0 30px rgba(0,0,0,0.3);
+        }
+        
+        @media (max-width: 768px) {
+            .number-display {
+                font-size: 8rem;
+            }
+        }
+    </style>
+  <style>@view-transition { navigation: auto; }</style>
+  <script src="/_sdk/data_sdk.js" type="text/javascript"></script>
+  <script src="/_sdk/element_sdk.js" type="text/javascript"></script>
+ </head>
+ <body class="bg-gradient-to-br from-slate-900 to-blue-900 min-h-screen"><!-- Selettore Modalità -->
+  <div class="fixed top-4 right-4 z-50"><select id="modeSelector" onchange="switchMode()" class="bg-white/90 backdrop-blur-sm border border-gray-300 rounded-lg px-4 py-2 text-sm font-medium shadow-lg"> <option value="display">📺 Display Pubblico</option> <option value="controls">🎛️ Controlli</option> <option value="status">📊 Stato Sistema</option> <option value="overview">🗂️ Panoramica Code</option> </select>
+  </div><!-- Indicatore Sincronizzazione -->
+  <div id="syncIndicator" class="fixed top-4 left-4 z-50 hidden">
+   <div class="bg-yellow-500/90 backdrop-blur-sm text-white px-3 py-1 rounded-lg text-sm font-medium">
+    ⚙️ Inizializzazione...
+   </div>
+  </div><!-- Sistema Notifiche -->
+  <div id="notificationContainer" class="fixed top-20 right-4 z-50 space-y-2"></div><!-- MODALITÀ DISPLAY PUBBLICO -->
+  <div id="displayMode" class="min-h-screen flex flex-col items-center justify-center bg-white">
+   <div class="text-center px-4">
+    <div id="currentNumberDisplay">
+     <div id="displayCurrentNumber" class="number-display font-black text-gray-900">
+      --
+     </div>
+    </div>
+   </div>
+  </div><!-- MODALITÀ CONTROLLI -->
+  <div id="controlsMode" class="min-h-screen p-4 flex flex-col hidden">
+   <div class="text-center mb-6" style="display: none;">
+    <div class="mb-4"><select id="controlsQueueSelector" onchange="switchQueueFromControls()" class="bg-white/90 backdrop-blur-sm border border-gray-300 rounded-lg px-6 py-3 text-base font-medium shadow-lg"> <option value="sportello1">🔵 Sportello 1</option> <option value="sportello2">🟢 Sportello 2</option> <option value="sportello3">🟡 Sportello 3</option> <option value="sportello4">🔴 Sportello 4</option> <option value="sportello5">🟣 Sportello 5</option> </select>
+    </div>
+    <h1 id="controlsQueueName" class="text-4xl font-black text-white mb-2">SPORTELLO 1</h1>
+    <div id="controlsQueueIcon" class="text-6xl">
+     🔵
+    </div>
+   </div>
+   <div class="flex-1 flex items-center justify-center">
+    <div class="w-full max-w-6xl"><!-- Due pulsanti principali -->
+     <div class="grid grid-cols-1 md:grid-cols-2 gap-4"><button onclick="callNext()" id="controlsCallNextBtn" class="bg-green-600 hover:bg-green-700 text-white py-20 rounded-3xl font-black text-5xl transition-all shadow-2xl"> 📢 CHIAMA<br>
+       PROSSIMO </button> <button onclick="goBackOne()" class="bg-red-600 hover:bg-red-700 text-white py-20 rounded-3xl font-black text-5xl transition-all shadow-2xl"> ⬅️ TORNA<br>
+       INDIETRO </button>
+     </div>
+    </div>
+   </div><!-- Pulsanti inferiori -->
+   <div class="w-full max-w-6xl mx-auto pb-4">
+    <div class="bg-yellow-600 rounded-2xl p-6 mb-4">
+     <h3 class="text-white font-bold text-2xl mb-3 text-center">🎯 CHIAMA NUMERO SPECIFICO</h3>
+     <div class="flex gap-3"><input type="number" id="specificNumber" placeholder="Numero..." min="1" class="flex-1 px-6 py-4 bg-white/20 border-2 border-white/30 rounded-xl text-white placeholder-white/70 text-2xl font-bold text-center"> <button onclick="callSpecificNumber()" class="bg-white/20 hover:bg-white/30 text-white px-12 py-4 rounded-xl font-bold text-2xl border-2 border-white/30 transition-all"> CHIAMA </button>
+     </div>
+    </div><button onclick="resetCurrentQueue()" class="w-full bg-blue-600 hover:bg-blue-700 text-white py-6 rounded-2xl font-black text-2xl transition-all shadow-2xl"> 🔄 RESET CODA CORRENTE </button>
+   </div>
+  </div><!-- MODALITÀ STATO SISTEMA -->
+  <div id="statusMode" class="min-h-screen p-4 hidden">
+   <div class="max-w-4xl mx-auto">
+    <div class="text-center mb-8">
+     <div class="mb-4"><select id="queueSelector" onchange="switchQueue()" class="bg-white/90 backdrop-blur-sm border border-gray-300 rounded-lg px-6 py-3 text-base font-medium shadow-lg"> <option value="sportello1">🔵 Sportello 1</option> <option value="sportello2">🟢 Sportello 2</option> <option value="sportello3">🟡 Sportello 3</option> <option value="sportello4">🔴 Sportello 4</option> <option value="sportello5">🟣 Sportello 5</option> </select>
+     </div>
+     <h1 id="statusQueueName" class="text-4xl font-bold text-white mb-2">SPORTELLO 1</h1>
+     <div id="statusQueueIcon" class="text-6xl">
+      🔵
+     </div>
+     <p class="text-blue-200 mt-2">Stato dettagliato della coda</p>
+    </div>
+    <div class="grid md:grid-cols-2 gap-6">
+     <div class="bg-white/10 backdrop-blur-sm rounded-2xl p-6">
+      <h2 class="text-2xl font-semibold text-white mb-6">📊 Statistiche</h2>
+      <div class="space-y-4">
+       <div class="bg-blue-500/20 rounded-lg p-4">
+        <div class="flex justify-between items-center"><span class="text-blue-200">Persone in Coda</span> <span class="text-2xl font-bold text-blue-300" id="statusTotalInQueue">99</span>
+        </div>
+       </div>
+       <div class="bg-green-500/20 rounded-lg p-4">
+        <div class="flex justify-between items-center"><span class="text-green-200">Persone Servite</span> <span class="text-2xl font-bold text-green-300" id="statusTotalServed">0</span>
+        </div>
+       </div>
+       <div class="bg-yellow-500/20 rounded-lg p-4">
+        <div class="flex justify-between items-center"><span class="text-yellow-200">Tempo Stimato</span> <span class="text-xl font-bold text-yellow-300" id="statusEstimatedWait">~5h</span>
+        </div>
+       </div>
+      </div>
+     </div>
+     <div class="bg-white/10 backdrop-blur-sm rounded-2xl p-6">
+      <h2 class="text-2xl font-semibold text-white mb-6">🎯 Stato Corrente</h2>
+      <div class="mb-6">
+       <h3 class="text-lg font-medium text-blue-200 mb-3">🔔 In Servizio</h3>
+       <div id="statusCurrentCustomer" class="bg-yellow-500/20 border-2 border-yellow-400/50 rounded-lg p-6 text-center">
+        <div class="text-white/70">
+         Nessun numero chiamato
+        </div>
+       </div>
+      </div>
+      <div>
+       <h3 class="text-lg font-medium text-blue-200 mb-3">⏭️ Prossimo in Coda</h3>
+       <div class="bg-blue-500/20 border-2 border-blue-400/50 rounded-lg p-6 text-center">
+        <div class="text-3xl font-bold text-blue-300" id="statusNextNumberValue">
+         1
+        </div>
+       </div>
+      </div>
+     </div>
+    </div>
+    <div class="mt-6 bg-white/10 backdrop-blur-sm rounded-2xl p-6">
+     <h2 class="text-2xl font-semibold text-white mb-4">📝 Cronologia Recente</h2>
+     <div id="statusHistoryList" class="space-y-2 max-h-48 overflow-y-auto"></div>
+    </div>
+   </div>
+  </div><!-- MODALITÀ PANORAMICA CODE -->
+  <div id="overviewMode" class="min-h-screen p-4 hidden">
+   <div class="max-w-7xl mx-auto">
+    <div class="text-center mb-8">
+     <h1 class="text-4xl font-bold text-white mb-2">🗂️ Panoramica Tutte le Code</h1>
+     <p class="text-blue-200">Stato in tempo reale di tutti gli sportelli</p>
+    </div>
+    <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6" id="overviewGrid"><!-- Le card saranno generate dinamicamente -->
+    </div>
+    <div class="mt-8 bg-white/10 backdrop-blur-sm rounded-2xl p-6">
+     <div class="flex justify-between items-center mb-4">
+      <h2 class="text-2xl font-semibold text-white">⚙️ Gestione Sistema</h2><button onclick="resetAllQueues()" class="bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-lg font-bold transition-all"> 🔄 RESET TUTTE LE CODE </button>
+     </div>
+     <div class="grid md:grid-cols-3 gap-4">
+      <div class="bg-blue-500/20 rounded-lg p-4 text-center">
+       <div class="text-3xl font-bold text-blue-300" id="overviewTotalWaiting">
+        0
+       </div>
+       <div class="text-sm text-blue-200">
+        Totale in Attesa
+       </div>
+      </div>
+      <div class="bg-green-500/20 rounded-lg p-4 text-center">
+       <div class="text-3xl font-bold text-green-300" id="overviewTotalServed">
+        0
+       </div>
+       <div class="text-sm text-green-200">
+        Totale Serviti
+       </div>
+      </div>
+      <div class="bg-purple-500/20 rounded-lg p-4 text-center">
+       <div class="text-3xl font-bold text-purple-300" id="overviewActiveQueues">
+        5
+       </div>
+       <div class="text-sm text-purple-200">
+        Code Attive
+       </div>
+      </div>
+     </div>
+    </div>
+   </div>
+  </div>
+  <script>
+        // Configurazione code
+        const QUEUE_CONFIGS = {
+            sportello1: { name: 'SPORTELLO 1', icon: '🔵', color: 'blue' },
+            sportello2: { name: 'SPORTELLO 2', icon: '🟢', color: 'green' },
+            sportello3: { name: 'SPORTELLO 3', icon: '🟡', color: 'yellow' },
+            sportello4: { name: 'SPORTELLO 4', icon: '🔴', color: 'red' },
+            sportello5: { name: 'SPORTELLO 5', icon: '🟣', color: 'purple' }
+        };
+
+        // Configurazione Cloud
+        const SYSTEM_KEY = 'multicoda_sistema_v1';
+        const JSONBIN_API_KEY = '$2a$10$Zcgt8XLx95ZpIQyIS31rGOjbKDc3bN3GhjVPa0l8Qrt/H2WiRaD7.';
+        const JSONBIN_API_URL = 'https://api.jsonbin.io/v3/b';
+        const USE_CLOUD_SYNC = true;
+        
+        let cloudBinIds = {
+            sportello1: '692023c8ae596e708f6707a9',
+            sportello2: null,
+            sportello3: null,
+            sportello4: null,
+            sportello5: null
+        };
+
+        // Stato globale
+        let allQueues = {};
+        let currentQueueId = 'sportello1';
+        let currentMode = 'display';
+        let sessionId = generateSessionId();
+        let isOnline = navigator.onLine;
+        let isCloudInitialized = false;
+
+        // Inizializza tutte le code
+        function initializeAllQueues() {
+            Object.keys(QUEUE_CONFIGS).forEach(queueId => {
+                allQueues[queueId] = {
+                    queue: [],
+                    currentCustomer: null,
+                    totalServed: 0,
+                    history: [],
+                    lastSyncTime: 0
+                };
+                
+                // Inizializza coda 1-99
+                for (let i = 1; i <= 99; i++) {
+                    allQueues[queueId].queue.push({
+                        number: i,
+                        addedTime: new Date().toLocaleTimeString('it-IT')
+                    });
+                }
+                
+                allQueues[queueId].history.push({
+                    action: `�� ${QUEUE_CONFIGS[queueId].name} inizializzato - 99 persone in attesa`,
+                    time: new Date().toLocaleTimeString('it-IT')
+                });
+            });
+        }
+
+        function generateSessionId() {
+            return 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+        }
+
+        function showNotification(message, type = 'info') {
+            const container = document.getElementById('notificationContainer');
+            const notification = document.createElement('div');
+            
+            let bgColor, icon;
+            switch(type) {
+                case 'success': bgColor = 'bg-green-500/90'; icon = '✅'; break;
+                case 'error': bgColor = 'bg-red-500/90'; icon = '❌'; break;
+                case 'warning': bgColor = 'bg-yellow-500/90'; icon = '⚠️'; break;
+                default: bgColor = 'bg-blue-500/90'; icon = 'ℹ️';
+            }
+            
+            notification.className = `${bgColor} backdrop-blur-sm text-white px-4 py-3 rounded-lg shadow-lg max-w-sm slide-up`;
+            notification.innerHTML = `
+                <div class="flex items-center space-x-2">
+                    <span class="text-lg">${icon}</span>
+                    <span class="font-medium">${message}</span>
+                </div>
+            `;
+            
+            container.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.style.opacity = '0';
+                notification.style.transform = 'translateX(100%)';
+                setTimeout(() => notification.remove(), 300);
+            }, 4000);
+        }
+
+        function updateSyncIndicator(text, color = 'blue') {
+            const indicator = document.getElementById('syncIndicator');
+            const colors = {
+                blue: 'bg-blue-500/90',
+                green: 'bg-green-500/90',
+                yellow: 'bg-yellow-500/90',
+                red: 'bg-red-500/90'
+            };
+            if (indicator) {
+                indicator.innerHTML = `<div class="${colors[color]} backdrop-blur-sm text-white px-3 py-1 rounded-lg text-sm font-medium">${text}</div>`;
+            }
+        }
+
+        // ========== CLOUD SYNC FUNCTIONS ==========
+
+        async function initializeCloudSync() {
+            if (!USE_CLOUD_SYNC || !isOnline) {
+                updateSyncIndicator('📱 Offline - Solo Locale', 'yellow');
+                return;
+            }
+
+            updateSyncIndicator('🔄 Configurazione cloud...', 'yellow');
+
+            try {
+                // Carica i dati dal cloud per sportello1
+                await loadQueueFromCloud('sportello1');
+                isCloudInitialized = true;
+                updateSyncIndicator('☁️ Sincronizzato', 'green');
+                showNotification('Sincronizzazione cloud attiva per Sportello 1!', 'success');
+
+                // Avvia il polling
+                startCloudPolling();
+            } catch (error) {
+                console.error('Errore inizializzazione cloud:', error);
+                updateSyncIndicator('⚠️ Cloud non disponibile', 'red');
+                showNotification('Cloud non disponibile, modalità offline', 'warning');
+            }
+        }
+
+        async function saveQueueToCloud(queueId) {
+            if (!USE_CLOUD_SYNC || !isOnline || !cloudBinIds[queueId]) {
+                return;
+            }
+
+            const data = {
+                queue: allQueues[queueId].queue,
+                currentCustomer: allQueues[queueId].currentCustomer,
+                totalServed: allQueues[queueId].totalServed,
+                history: allQueues[queueId].history,
+                timestamp: Date.now(),
+                sessionId: sessionId
+            };
+
+            try {
+                const response = await fetch(`${JSONBIN_API_URL}/${cloudBinIds[queueId]}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Master-Key': JSONBIN_API_KEY
+                    },
+                    body: JSON.stringify(data)
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                updateSyncIndicator('☁️ Salvato nel cloud', 'green');
+            } catch (error) {
+                console.error(`Errore salvataggio cloud ${queueId}:`, error);
+                updateSyncIndicator('⚠️ Errore sincronizzazione', 'red');
+            }
+        }
+
+        async function loadQueueFromCloud(queueId) {
+            if (!USE_CLOUD_SYNC || !isOnline || !cloudBinIds[queueId]) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`${JSONBIN_API_URL}/${cloudBinIds[queueId]}/latest`, {
+                    method: 'GET',
+                    headers: {
+                        'X-Master-Key': JSONBIN_API_KEY
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                const result = await response.json();
+                const data = result.record;
+
+                // Aggiorna solo se pi�� recente e da un'altra sessione
+                if (data.timestamp > allQueues[queueId].lastSyncTime && data.sessionId !== sessionId) {
+                    allQueues[queueId] = {
+                        queue: data.queue || [],
+                        currentCustomer: data.currentCustomer || null,
+                        totalServed: data.totalServed || 0,
+                        history: data.history || [],
+                        lastSyncTime: data.timestamp
+                    };
+
+                    updateDisplay();
+                    
+                    // Notifica cambio
+                    if (queueId === currentQueueId && data.currentCustomer) {
+                        showNotification(`${QUEUE_CONFIGS[queueId].icon} Numero ${data.currentCustomer.number} chiamato da altro dispositivo`, 'info');
+                    }
+                }
+            } catch (error) {
+                console.error(`Errore caricamento cloud ${queueId}:`, error);
+            }
+        }
+
+        async function loadAllQueuesFromCloud() {
+            for (const queueId of Object.keys(QUEUE_CONFIGS)) {
+                if (cloudBinIds[queueId]) {
+                    await loadQueueFromCloud(queueId);
+                }
+            }
+        }
+
+        function startCloudPolling() {
+            // Polling ogni 2 secondi
+            setInterval(async () => {
+                if (USE_CLOUD_SYNC && isOnline && isCloudInitialized) {
+                    await loadAllQueuesFromCloud();
+                }
+            }, 2000);
+        }
+
+        // ========== LOCAL STORAGE FUNCTIONS (BACKUP) ==========
+
+        function saveQueueLocal(queueId) {
+            const data = {
+                ...allQueues[queueId],
+                timestamp: Date.now(),
+                sessionId: sessionId
+            };
+            
+            try {
+                localStorage.setItem(`${SYSTEM_KEY}_${queueId}`, JSON.stringify(data));
+                localStorage.setItem(`${SYSTEM_KEY}_lastUpdate`, Date.now().toString());
+            } catch (e) {
+                console.warn('Errore salvataggio locale:', e);
+            }
+        }
+
+        function loadQueueLocal(queueId) {
+            try {
+                const data = localStorage.getItem(`${SYSTEM_KEY}_${queueId}`);
+                if (!data) return;
+                
+                const parsed = JSON.parse(data);
+                
+                if (parsed.timestamp > allQueues[queueId].lastSyncTime && parsed.sessionId !== sessionId) {
+                    allQueues[queueId] = {
+                        queue: parsed.queue || [],
+                        currentCustomer: parsed.currentCustomer || null,
+                        totalServed: parsed.totalServed || 0,
+                        history: parsed.history || [],
+                        lastSyncTime: parsed.timestamp
+                    };
+                    
+                    updateDisplay();
+                }
+            } catch (e) {
+                console.warn('Errore caricamento locale:', e);
+            }
+        }
+
+        // Funzione unificata di salvataggio
+        async function saveQueueData(queueId) {
+            saveQueueLocal(queueId);
+            
+            if (USE_CLOUD_SYNC && isCloudInitialized) {
+                await saveQueueToCloud(queueId);
+            }
+        }
+
+        // Storage event per sincronizzazione locale tra schede
+        window.addEventListener('storage', (e) => {
+            if (e.key && e.key.startsWith(SYSTEM_KEY)) {
+                if (e.key === `${SYSTEM_KEY}_lastUpdate`) {
+                    Object.keys(QUEUE_CONFIGS).forEach(loadQueueLocal);
+                } else {
+                    const queueId = e.key.replace(`${SYSTEM_KEY}_`, '');
+                    if (QUEUE_CONFIGS[queueId]) {
+                        loadQueueLocal(queueId);
+                    }
+                }
+            }
+        });
+
+        // ========== UI FUNCTIONS ==========
+
+        function switchQueue() {
+            currentQueueId = document.getElementById('queueSelector').value;
+            updateDisplay();
+        }
+        
+        function switchQueueFromControls() {
+            currentQueueId = document.getElementById('controlsQueueSelector').value;
+            updateDisplay();
+        }
+
+        function switchMode() {
+            currentMode = document.getElementById('modeSelector').value;
+            
+            document.getElementById('displayMode').classList.add('hidden');
+            document.getElementById('controlsMode').classList.add('hidden');
+            document.getElementById('statusMode').classList.add('hidden');
+            document.getElementById('overviewMode').classList.add('hidden');
+            
+            const syncIndicator = document.getElementById('syncIndicator');
+            
+            switch(currentMode) {
+                case 'display':
+                    document.getElementById('displayMode').classList.remove('hidden');
+                    syncIndicator.classList.add('hidden');
+                    break;
+                case 'controls':
+                    document.getElementById('controlsMode').classList.remove('hidden');
+                    syncIndicator.classList.remove('hidden');
+                    break;
+                case 'status':
+                    document.getElementById('statusMode').classList.remove('hidden');
+                    syncIndicator.classList.remove('hidden');
+                    break;
+                case 'overview':
+                    document.getElementById('overviewMode').classList.remove('hidden');
+                    syncIndicator.classList.remove('hidden');
+                    break;
+            }
+            
+            updateDisplay();
+        }
+
+        function updateDisplay() {
+            const config = QUEUE_CONFIGS[currentQueueId];
+            const queueData = allQueues[currentQueueId];
+            
+            // Display pubblico
+            const currentNum = document.getElementById('displayCurrentNumber');
+            if (currentNum) {
+                if (queueData.currentCustomer) {
+                    currentNum.textContent = queueData.currentCustomer.number;
+                    currentNum.className = 'number-display font-black text-gray-900';
+                } else {
+                    currentNum.textContent = '--';
+                    currentNum.className = 'number-display font-black text-gray-400';
+                }
+            }
+            
+            // Controlli
+            if (document.getElementById('controlsQueueName')) {
+                document.getElementById('controlsQueueName').textContent = config.name;
+                document.getElementById('controlsQueueIcon').textContent = config.icon;
+                
+                const controlsSelector = document.getElementById('controlsQueueSelector');
+                if (controlsSelector) {
+                    controlsSelector.value = currentQueueId;
+                }
+                
+                const btn = document.getElementById('controlsCallNextBtn');
+                if (queueData.queue.length === 0) {
+                    btn.innerHTML = '🔄 RIAVVIA<br>CODA (1-99)';
+                    btn.className = 'bg-orange-600 hover:bg-orange-700 text-white py-20 rounded-3xl font-black text-5xl transition-all shadow-2xl';
+                } else {
+                    btn.innerHTML = '📢 CHIAMA<br>PROSSIMO';
+                    btn.className = 'bg-green-600 hover:bg-green-700 text-white py-20 rounded-3xl font-black text-5xl transition-all shadow-2xl';
+                }
+            }
+            
+            // Stato
+            if (document.getElementById('statusQueueName')) {
+                document.getElementById('statusQueueName').textContent = config.name;
+                document.getElementById('statusQueueIcon').textContent = config.icon;
+                
+                const queueSelector = document.getElementById('queueSelector');
+                if (queueSelector) {
+                    queueSelector.value = currentQueueId;
+                }
+                
+                document.getElementById('statusTotalInQueue').textContent = queueData.queue.length;
+                document.getElementById('statusTotalServed').textContent = queueData.totalServed;
+                
+                const estimatedMinutes = queueData.queue.length * 3;
+                const wait = document.getElementById('statusEstimatedWait');
+                if (estimatedMinutes < 60) {
+                    wait.textContent = `~${estimatedMinutes} min`;
+                } else {
+                    const hours = Math.floor(estimatedMinutes / 60);
+                    const mins = estimatedMinutes % 60;
+                    wait.textContent = `~${hours}h ${mins}min`;
+                }
+                
+                const currentCust = document.getElementById('statusCurrentCustomer');
+                if (queueData.currentCustomer) {
+                    currentCust.innerHTML = `
+                        <div class="text-4xl font-bold text-yellow-300">#${queueData.currentCustomer.number}</div>
+                        <div class="text-sm text-yellow-200 mt-2">Chiamato alle ${queueData.currentCustomer.calledTime}</div>
+                    `;
+                } else {
+                    currentCust.innerHTML = '<div class="text-white/70">Nessun numero chiamato</div>';
+                }
+                
+                document.getElementById('statusNextNumberValue').textContent = 
+                    queueData.queue.length > 0 ? queueData.queue[0].number : '--';
+                
+                const historyList = document.getElementById('statusHistoryList');
+                if (queueData.history.length === 0) {
+                    historyList.innerHTML = '<div class="text-white/50 text-center py-4">Nessuna attività</div>';
+                } else {
+                    historyList.innerHTML = queueData.history.slice(-5).reverse().map(item => `
+                        <div class="bg-white/10 rounded-lg p-3 text-sm">
+                            <div class="flex justify-between">
+                                <span class="text-white">${item.action}</span>
+                                <span class="text-white/50">${item.time}</span>
+                            </div>
+                        </div>
+                    `).join('');
+                }
+            }
+            
+            // Panoramica
+            if (currentMode === 'overview') {
+                updateOverview();
+            }
+        }
+
+        function updateOverview() {
+            const grid = document.getElementById('overviewGrid');
+            let totalWaiting = 0;
+            let totalServed = 0;
+            
+            grid.innerHTML = Object.keys(QUEUE_CONFIGS).map(queueId => {
+                const config = QUEUE_CONFIGS[queueId];
+                const data = allQueues[queueId];
+                totalWaiting += data.queue.length;
+                totalServed += data.totalServed;
+                
+                return `
+                    <div class="bg-white/10 backdrop-blur-sm rounded-2xl p-6">
+                        <div class="text-center mb-4">
+                            <div class="text-5xl mb-2">${config.icon}</div>
+                            <h3 class="text-xl font-bold text-white">${config.name}</h3>
+                        </div>
+                        
+                        <div class="space-y-3">
+                            <div class="bg-yellow-500/20 rounded-lg p-3 text-center">
+                                <div class="text-3xl font-bold text-yellow-300">
+                                    ${data.currentCustomer ? data.currentCustomer.number : '--'}
+                                </div>
+                                <div class="text-xs text-yellow-200">In Servizio</div>
+                            </div>
+                            
+                            <div class="bg-blue-500/20 rounded-lg p-3">
+                                <div class="flex justify-between items-center">
+                                    <span class="text-blue-200 text-sm">In Coda</span>
+                                    <span class="text-xl font-bold text-blue-300">${data.queue.length}</span>
+                                </div>
+                            </div>
+                            
+                            <div class="bg-green-500/20 rounded-lg p-3">
+                                <div class="flex justify-between items-center">
+                                    <span class="text-green-200 text-sm">Serviti</span>
+                                    <span class="text-xl font-bold text-green-300">${data.totalServed}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            
+            document.getElementById('overviewTotalWaiting').textContent = totalWaiting;
+            document.getElementById('overviewTotalServed').textContent = totalServed;
+        }
+
+        // ========== QUEUE OPERATIONS ==========
+
+        async function callNext() {
+            const queueData = allQueues[currentQueueId];
+            
+            if (queueData.queue.length === 0) {
+                restartCurrentQueue();
+                setTimeout(() => callNext(), 100);
+                return;
+            }
+            
+            if (queueData.currentCustomer) {
+                queueData.history.push({
+                    action: `⏭️ Numero ${queueData.currentCustomer.number} saltato`,
+                    time: new Date().toLocaleTimeString('it-IT')
+                });
+            }
+            
+            queueData.currentCustomer = queueData.queue.shift();
+            queueData.currentCustomer.calledTime = new Date().toLocaleTimeString('it-IT');
+            queueData.totalServed++;
+            
+            queueData.history.push({
+                action: `📢 Numero ${queueData.currentCustomer.number} chiamato`,
+                time: new Date().toLocaleTimeString('it-IT')
+            });
+            
+            updateDisplay();
+            await saveQueueData(currentQueueId);
+            showNotification(`Numero ${queueData.currentCustomer.number} chiamato!`, 'success');
+        }
+
+        async function goBackOne() {
+            const queueData = allQueues[currentQueueId];
+            
+            if (!queueData.currentCustomer) {
+                showNotification('Nessun numero in servizio!', 'error');
+                return;
+            }
+            
+            const currentNumber = queueData.currentCustomer.number;
+            const previousNumber = currentNumber - 1;
+            
+            if (previousNumber < 1) {
+                showNotification('Non puoi tornare indietro dal numero 1!', 'error');
+                return;
+            }
+            
+            queueData.queue.unshift(queueData.currentCustomer);
+            
+            queueData.currentCustomer = {
+                number: previousNumber,
+                addedTime: new Date().toLocaleTimeString('it-IT'),
+                calledTime: new Date().toLocaleTimeString('it-IT')
+            };
+            
+            queueData.history.push({
+                action: `⬅️ Tornato al numero ${previousNumber}`,
+                time: new Date().toLocaleTimeString('it-IT')
+            });
+            
+            updateDisplay();
+            await saveQueueData(currentQueueId);
+            showNotification(`Tornato al numero ${previousNumber}!`, 'success');
+        }
+
+        async function callSpecificNumber() {
+            const input = document.getElementById('specificNumber');
+            const numberToCall = parseInt(input.value);
+            const queueData = allQueues[currentQueueId];
+            
+            if (!numberToCall || numberToCall < 1) {
+                showNotification('Inserisci un numero valido!', 'error');
+                return;
+            }
+            
+            const customerIndex = queueData.queue.findIndex(c => c.number === numberToCall);
+            
+            if (customerIndex === -1) {
+                showNotification(`Numero ${numberToCall} non in coda!`, 'error');
+                return;
+            }
+            
+            if (queueData.currentCustomer) {
+                queueData.history.push({
+                    action: `⏭️ Numero ${queueData.currentCustomer.number} saltato`,
+                    time: new Date().toLocaleTimeString('it-IT')
+                });
+            }
+            
+            const customer = queueData.queue.splice(customerIndex, 1)[0];
+            customer.calledTime = new Date().toLocaleTimeString('it-IT');
+            queueData.currentCustomer = customer;
+            queueData.totalServed++;
+            
+            const numbersToRemove = queueData.queue.filter(c => c.number < numberToCall);
+            queueData.queue = queueData.queue.filter(c => c.number > numberToCall);
+            
+            queueData.history.push({
+                action: `🎯 Numero ${numberToCall} chiamato - ${numbersToRemove.length} numeri saltati`,
+                time: new Date().toLocaleTimeString('it-IT')
+            });
+            
+            input.value = '';
+            updateDisplay();
+            await saveQueueData(currentQueueId);
+            showNotification(`Numero ${numberToCall} chiamato!`, 'success');
+        }
+
+        async function restartCurrentQueue() {
+            const queueData = allQueues[currentQueueId];
+            queueData.queue = [];
+            
+            for (let i = 1; i <= 99; i++) {
+                queueData.queue.push({
+                    number: i,
+                    addedTime: new Date().toLocaleTimeString('it-IT')
+                });
+            }
+            
+            queueData.history.push({
+                action: '🔄 Coda riavviata - 99 persone in attesa',
+                time: new Date().toLocaleTimeString('it-IT')
+            });
+            
+            updateDisplay();
+            await saveQueueData(currentQueueId);
+            showNotification('Coda riavviata!', 'success');
+        }
+
+        async function resetCurrentQueue() {
+            const config = QUEUE_CONFIGS[currentQueueId];
+            const queueData = allQueues[currentQueueId];
+            
+            queueData.currentCustomer = null;
+            queueData.totalServed = 0;
+            queueData.queue = [];
+            queueData.history = [];
+            
+            for (let i = 1; i <= 99; i++) {
+                queueData.queue.push({
+                    number: i,
+                    addedTime: new Date().toLocaleTimeString('it-IT')
+                });
+            }
+            
+            queueData.history.push({
+                action: `🔄 ${config.name} resettato completamente`,
+                time: new Date().toLocaleTimeString('it-IT')
+            });
+            
+            updateDisplay();
+            await saveQueueData(currentQueueId);
+            showNotification(`${config.name} resettato!`, 'success');
+        }
+
+        async function resetAllQueues() {
+            for (const queueId of Object.keys(QUEUE_CONFIGS)) {
+                const config = QUEUE_CONFIGS[queueId];
+                const queueData = allQueues[queueId];
+                
+                queueData.currentCustomer = null;
+                queueData.totalServed = 0;
+                queueData.queue = [];
+                queueData.history = [];
+                
+                for (let i = 1; i <= 99; i++) {
+                    queueData.queue.push({
+                        number: i,
+                        addedTime: new Date().toLocaleTimeString('it-IT')
+                    });
+                }
+                
+                queueData.history.push({
+                    action: `🔄 ${config.name} resettato`,
+                    time: new Date().toLocaleTimeString('it-IT')
+                });
+                
+                await saveQueueData(queueId);
+            }
+            
+            updateDisplay();
+            showNotification('Tutte le code resettate!', 'success');
+        }
+
+        // ========== EVENT LISTENERS ==========
+
+        window.addEventListener('online', () => {
+            isOnline = true;
+            updateSyncIndicator('🌐 Riconnesso!', 'green');
+            if (USE_CLOUD_SYNC && !isCloudInitialized) {
+                initializeCloudSync();
+            }
+        });
+
+        window.addEventListener('offline', () => {
+            isOnline = false;
+            updateSyncIndicator('📱 Offline - Solo Locale', 'yellow');
+        });
+
+        document.addEventListener('DOMContentLoaded', function() {
+            const specificNumberInput = document.getElementById('specificNumber');
+            if (specificNumberInput) {
+                specificNumberInput.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter') callSpecificNumber();
+                });
+            }
+        });
+
+        // ========== INITIALIZATION ==========
+
+        initializeAllQueues();
+        
+        // Carica dati locali prima
+        Object.keys(QUEUE_CONFIGS).forEach(loadQueueLocal);
+        
+        // Poi inizializza il cloud
+        if (USE_CLOUD_SYNC) {
+            initializeCloudSync();
+        } else {
+            updateSyncIndicator('📱 Solo Locale', 'yellow');
+        }
+        
+        updateDisplay();
+    </script>
+ <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9a1ef3846246baa5',t:'MTc2MzcxNTE0OS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>
